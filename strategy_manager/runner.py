@@ -8,6 +8,7 @@ from loguru import logger
 from data_pipeline.data_manager import DataManager
 from model_core.vm import StackVM
 from model_core.data_loader import CryptoDataLoader
+from model_core.vocab import FORMULA_VOCAB
 from execution.trader import SolanaTrader
 from execution.utils import get_mint_decimals
 from .config import StrategyConfig
@@ -31,7 +32,18 @@ class StrategyRunner:
             with open("best_meme_strategy.json", "r") as f:
                 # 兼容早期版本
                 data = json.load(f)
-                self.formula = data if isinstance(data, list) else data.get("formula")
+                if isinstance(data, list):
+                    logger.warning("Loaded legacy strategy without vocab metadata. Retrain after vocab changes before live trading.")
+                    self.formula = data
+                else:
+                    vocab_size = data.get("vocab_size")
+                    if vocab_size is not None and vocab_size != FORMULA_VOCAB.size:
+                        logger.critical(
+                            f"Strategy vocab mismatch: file={vocab_size}, runtime={FORMULA_VOCAB.size}. "
+                            "Retrain model before running strategy."
+                        )
+                        exit(1)
+                    self.formula = data.get("formula")
             logger.success(f"Loaded Strategy: {self.formula}")
         except FileNotFoundError:
             logger.critical("Strategy file not found! Please train model first.")

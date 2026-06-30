@@ -44,8 +44,8 @@ class CryptoDataLoader:
         }
         self.feat_tensor = FeatureEngineer.compute_features(self.raw_data_cache)
         op = self.raw_data_cache['open']
-        t1 = torch.roll(op, -1, dims=1)
-        t2 = torch.roll(op, -2, dims=1)
-        self.target_ret = torch.log(t2 / (t1 + 1e-9))
-        self.target_ret[:, -2:] = 0.0
+        self.target_ret = torch.zeros_like(op)
+        if op.shape[1] > 2:
+            self.target_ret[:, :-2] = torch.log(op[:, 2:] / (op[:, 1:-1] + 1e-9))
+            self.target_ret = torch.nan_to_num(self.target_ret, nan=0.0, posinf=0.0, neginf=0.0)
         print(f"Data Ready. Shape: {self.feat_tensor.shape}")

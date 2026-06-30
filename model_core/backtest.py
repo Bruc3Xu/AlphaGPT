@@ -6,8 +6,17 @@ class MemeBacktest:
         self.min_liq = 500000.0
         self.base_fee = 0.0060
 
-    def evaluate(self, factors, raw_data, target_ret):
+    def evaluate(self, factors, raw_data, target_ret, time_slice=None):
         liquidity = raw_data['liquidity']
+        if time_slice is not None:
+            factors = factors[:, time_slice]
+            liquidity = liquidity[:, time_slice]
+            target_ret = target_ret[:, time_slice]
+
+        if factors.shape[1] == 0:
+            empty_score = torch.tensor(-10.0, device=factors.device)
+            return empty_score, 0.0
+
         signal = torch.sigmoid(factors)
         is_safe = (liquidity > self.min_liq).float()
         position = (signal > 0.85).float() * is_safe
@@ -24,6 +33,7 @@ class MemeBacktest:
         big_drawdowns = (net_pnl < -0.05).float().sum(dim=1)
         score = cum_ret - (big_drawdowns * 2.0)
         activity = position.sum(dim=1)
-        score = torch.where(activity < 5, torch.tensor(-10.0, device=score.device), score)
+        min_activity = min(5, max(1, factors.shape[1] // 100))
+        score = torch.where(activity < min_activity, torch.tensor(-10.0, device=score.device), score)
         final_fitness = torch.median(score)
         return final_fitness, cum_ret.mean().item()
